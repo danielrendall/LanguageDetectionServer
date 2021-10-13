@@ -1,5 +1,8 @@
 val scala3Version = "3.0.2"
 
+githubOwner := "danielrendall"
+githubRepository := "LanguageDetectionServer"
+
 lazy val root = project
   .in(file("."))
   .settings(
@@ -11,6 +14,7 @@ lazy val root = project
     assembly / mainClass := Some("uk.co.danielrendall.languagedetectionserver.languageDetectionServer"),
 
     libraryDependencies ++= Seq(
-      "org.nanohttpd" % "nanohttpd" % "2.3.1"
+      "org.nanohttpd" % "nanohttpd" % "2.3.1",
+      "com.sixtysevenbricks.text.languagedetection" % "languagedetection_2.13" % "0.1.1"
     )
   )
