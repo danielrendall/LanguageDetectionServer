@@ -1,8 +1,23 @@
-## sbt project compiled with Scala 3
+## Language Detection Server
 
 ### Usage
 
-This is a normal sbt project. You can compile code with `sbt compile`, run it with `sbt run`, and `sbt console` will start a Scala 3 REPL.
+Very quick instructions (you need access to language fingerprint files)
 
-For more information on the sbt-dotty plugin, see the
-[scala3-example-project](https://github.com/scala/scala3-example-project/blob/main/README.md).
+Run the server
+
+Add fingerprint files for languages you care about:
+
+```shell
+curl -XPUT --data @fr-FR.fp  http://localhost:8080/fr-FR
+```
+
+... where the name you use in the URL is the name that you want returned for that fingerprint file
+
+Post a text file to it, it should respond with the identified language
+
+```shell
+curl -XPOST --data @test.txt http://localhost:8080/
+```
+
+Eagle-eyed folks may spot similarities to my XsltServer project...
