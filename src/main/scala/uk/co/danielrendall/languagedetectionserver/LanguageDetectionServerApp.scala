@@ -1,10 +1,10 @@
 package uk.co.danielrendall.languagedetectionserver
 
-import com.sixtysevenbricks.text.languagedetection.{LanguageDetector, LanguageFingerprint}
+import com.sixtysevenbricks.text.languagedetection.{LanguageDetector, LanguageFingerprint, NGramProfiler}
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.*
 import fi.iki.elonen.NanoHTTPD.Response.Status
-import uk.co.danielrendall.languagedetectionserver.Exceptions.{NoDocumentSuppliedException, RequestTooBigException}
+import uk.co.danielrendall.languagedetectionserver.Exceptions.{BadVerb, NoDocumentSuppliedException, RequestTooBigException}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import java.nio.charset.StandardCharsets
@@ -23,6 +23,8 @@ class LanguageDetectionServerApp(port: Int) extends NanoHTTPD(port):
   object Constants:
     val QUIT = "_quit"
     val LIST = "_list"
+    val DETECT = "_detect"
+    val FINGERPRINT = "_fingerprint"
     // cURL sents an "Expect" header if the size is too big; rather than figure out how to deal with that,
     // we impose a limit which should be safe. See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Expect
     val MAX_BODY_SIZE = 8388603 // 8MB
@@ -39,16 +41,13 @@ class LanguageDetectionServerApp(port: Int) extends NanoHTTPD(port):
           session.getMethod match {
             case Method.GET => get(session, head, tail)
             case Method.PUT => put(session, head, tail)
+            case Method.POST => post(session, head, tail)
             case Method.DELETE => delete(session, head, tail)
             case _ => badRequest("Unsupported method: " + session.getMethod.name())
           }
         }
       case _ =>
-        session.getMethod match {
-          case Method.POST => post(session)
-          case _ =>
-            runningMessage()
-        }
+        runningMessage()
     }
 
   private def get(session: IHTTPSession, first: String, rest: List[String]) =
@@ -73,16 +72,20 @@ class LanguageDetectionServerApp(port: Int) extends NanoHTTPD(port):
       }
     }
 
-  private def post(session: IHTTPSession) =
-    (for {
-      byteArray <- getUploadedBytes(session)
-      _ <- if (byteArray.nonEmpty) Success(()) else Failure(NoDocumentSuppliedException)
-      result <- process(byteArray)
-    } yield result) match {
-      case Success(result) =>
-        okMsg(result)
-      case Failure(ex) =>
-        badRequest(ex.getMessage)
+  private def post(session: IHTTPSession, first: String, rest: List[String]): Response =
+    if (first == Constants.DETECT || first == Constants.FINGERPRINT) {
+      (for {
+        byteArray <- getUploadedBytes(session)
+        _ <- if (byteArray.nonEmpty) Success(()) else Failure(NoDocumentSuppliedException)
+        result <- process(first, byteArray)
+      } yield result) match {
+        case Success(result) =>
+          okMsg(result)
+        case Failure(ex) =>
+          badRequest(ex.getMessage)
+      }
+    } else {
+      badRequest(s"Didn't understand $first")
     }
 
 
@@ -114,10 +117,17 @@ class LanguageDetectionServerApp(port: Int) extends NanoHTTPD(port):
       languageDetector.addOrUpdateFingerprint(LanguageFingerprint.load(name, bais))
     }
 
-  private def process(bytes: Array[Byte]): Try[String] =
+  private def process(action: String, bytes: Array[Byte]): Try[String] =
     Try {
       val text = new String(bytes, StandardCharsets.UTF_8)
-      languageDetector.identifyLanguage(text)
+      action match {
+        case Constants.DETECT =>
+          languageDetector.identifyLanguage(text)
+        case Constants.FINGERPRINT =>
+          NGramProfiler.createNgramProfile(text, 5).mkString("\n")
+        case _ =>
+          throw BadVerb(action)
+      }
     }
 
 
